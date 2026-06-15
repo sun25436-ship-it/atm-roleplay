@@ -1,0 +1,806 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>가상 ATM</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap');
+
+  :root{
+    --bg:#0e1410;
+    --panel:#15201a;
+    --screen:#0c2e22;
+    --screen-text:#7CFFB2;
+    --accent:#FFB454;
+    --muted:#7a8c83;
+    --border:#2a3a31;
+    --danger:#ff6b6b;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{
+    background: radial-gradient(circle at 50% -10%, #1c2920 0%, #0a0e0b 70%);
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-family:'IBM Plex Sans KR', sans-serif;
+    color:#e8efe9;
+    padding:24px;
+  }
+
+  .atm-shell{
+    width:380px;
+    background: linear-gradient(180deg, #1b2a21 0%, #131c16 100%);
+    border-radius:28px;
+    padding:22px;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.04);
+    border:1px solid #283228;
+  }
+
+  .brand{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:0 6px 14px;
+    font-family:'Space Mono', monospace;
+    font-size:13px;
+    color:var(--muted);
+    letter-spacing:2px;
+  }
+  .brand .logo{
+    color:var(--accent);
+    font-weight:700;
+    letter-spacing:3px;
+  }
+  .brand .dot{
+    width:8px;height:8px;border-radius:50%;
+    background:#3ecf6f;
+    box-shadow:0 0 8px #3ecf6f;
+    display:inline-block;
+    margin-right:6px;
+    vertical-align:middle;
+  }
+
+  .screen{
+    background: var(--screen);
+    border-radius:14px;
+    padding:22px 18px;
+    min-height:380px;
+    display:flex;
+    flex-direction:column;
+    font-family:'Space Mono', monospace;
+    color:var(--screen-text);
+    border:6px solid #06140e;
+    box-shadow: inset 0 0 30px rgba(0,0,0,0.6), inset 0 0 60px rgba(124,255,178,0.04);
+    position:relative;
+    overflow:hidden;
+  }
+  .screen::before{
+    content:"";
+    position:absolute; inset:0;
+    background: repeating-linear-gradient(180deg, rgba(255,255,255,0.015) 0px, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 3px);
+    pointer-events:none;
+  }
+
+  .screen-header{
+    font-size:11px;
+    letter-spacing:3px;
+    color:#3f7f5e;
+    margin-bottom:14px;
+    display:flex;
+    justify-content:space-between;
+  }
+
+  .screen-body{
+    flex:1;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    gap:14px;
+  }
+
+  .title{
+    font-size:18px;
+    font-weight:700;
+    color:#aaffd0;
+    margin-bottom:4px;
+  }
+  .subtitle{
+    font-size:12px;
+    color:#5fae84;
+    line-height:1.6;
+  }
+
+  .field{
+    margin-top:6px;
+  }
+  .field label{
+    display:block;
+    font-size:11px;
+    color:#5fae84;
+    margin-bottom:6px;
+    letter-spacing:1px;
+  }
+  .pin-display{
+    background:#06140e;
+    border:1px solid #1f4631;
+    border-radius:8px;
+    padding:12px;
+    font-size:22px;
+    letter-spacing:10px;
+    text-align:center;
+    color:#aaffd0;
+    min-height:48px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .pin-display.empty{ color:#2f5d44; letter-spacing:normal; font-size:13px; }
+
+  .amount-input{
+    width:100%;
+    background:#06140e;
+    border:1px solid #1f4631;
+    border-radius:8px;
+    padding:12px;
+    font-size:18px;
+    color:#aaffd0;
+    font-family:'Space Mono', monospace;
+    text-align:right;
+    outline:none;
+  }
+  .amount-input:focus{ border-color:#3ecf6f; }
+
+  .balance-amount{
+    font-size:34px;
+    font-weight:700;
+    color:#aaffd0;
+    letter-spacing:1px;
+  }
+  .balance-label{
+    font-size:11px;
+    color:#5fae84;
+    letter-spacing:2px;
+    margin-bottom:6px;
+  }
+
+  .error-msg{
+    color:var(--danger);
+    font-size:12px;
+    margin-top:8px;
+    min-height:16px;
+  }
+
+  .quick-amounts{
+    display:grid;
+    grid-template-columns: repeat(3,1fr);
+    gap:8px;
+    margin-top:10px;
+  }
+  .quick-amounts button{
+    background:#06140e;
+    border:1px solid #1f4631;
+    color:#aaffd0;
+    font-family:'Space Mono', monospace;
+    font-size:12px;
+    padding:8px 4px;
+    border-radius:6px;
+    cursor:pointer;
+    transition:0.15s;
+  }
+  .quick-amounts button:hover{
+    background:#123524;
+    border-color:#3ecf6f;
+  }
+
+  /* Controls below screen */
+  .controls{
+    margin-top:18px;
+  }
+
+  .keypad{
+    display:grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap:10px;
+    margin-top:14px;
+  }
+  .keypad button{
+    aspect-ratio:1;
+    border-radius:50%;
+    border:1px solid #2a3a31;
+    background:linear-gradient(180deg,#222f26,#1a2520);
+    color:#dfeee6;
+    font-family:'Space Mono', monospace;
+    font-size:18px;
+    cursor:pointer;
+    transition:0.1s;
+    box-shadow:0 2px 0 rgba(0,0,0,0.4);
+  }
+  .keypad button:active{
+    transform:translateY(1px);
+    box-shadow:none;
+  }
+  .keypad button:hover{
+    border-color:var(--accent);
+  }
+  .keypad button.wide-icon{
+    font-size:13px;
+    color:#9fb3a8;
+  }
+
+  .action-row{
+    display:flex;
+    gap:10px;
+    margin-top:14px;
+  }
+  .btn{
+    flex:1;
+    padding:13px;
+    border-radius:10px;
+    border:none;
+    font-family:'IBM Plex Sans KR', sans-serif;
+    font-weight:700;
+    font-size:14px;
+    cursor:pointer;
+    transition:0.15s;
+  }
+  .btn-primary{
+    background:var(--accent);
+    color:#1b1304;
+  }
+  .btn-primary:hover{ background:#ffc879; }
+  .btn-secondary{
+    background:transparent;
+    border:1px solid #3a4a3f;
+    color:#cdd9d2;
+  }
+  .btn-secondary:hover{ border-color:#5fae84; color:#aaffd0; }
+  .btn:disabled{
+    opacity:0.4;
+    cursor:not-allowed;
+  }
+
+  .menu-list{
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    margin-top:8px;
+  }
+  .menu-list button{
+    background:#06140e;
+    border:1px solid #1f4631;
+    color:#aaffd0;
+    text-align:left;
+    padding:14px 16px;
+    border-radius:10px;
+    font-family:'IBM Plex Sans KR', sans-serif;
+    font-size:14px;
+    font-weight:500;
+    cursor:pointer;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    transition:0.15s;
+  }
+  .menu-list button:hover{
+    border-color:var(--accent);
+    background:#123524;
+  }
+  .menu-list button .arrow{ color:var(--accent); font-family:'Space Mono', monospace; }
+
+  .receipt{
+    background:#06140e;
+    border:1px dashed #2f5d44;
+    border-radius:8px;
+    padding:14px;
+    font-size:12px;
+    line-height:1.8;
+    color:#9fe6c1;
+    margin-top:10px;
+  }
+  .receipt .line{ display:flex; justify-content:space-between; }
+  .receipt hr{ border:none; border-top:1px dashed #2f5d44; margin:8px 0; }
+
+  .card-slot-anim{
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    gap:18px;
+    height:100%;
+  }
+  .card-icon{
+    width:120px; height:76px;
+    border-radius:10px;
+    background:linear-gradient(135deg,#3a4a3f,#1f2b22);
+    border:1px solid #5fae84;
+    position:relative;
+    animation: insertCard 1.4s ease-in-out infinite;
+  }
+  .card-icon::after{
+    content:"";
+    position:absolute; top:14px; left:12px; right:12px; height:8px;
+    background:#1a2520;
+    border-radius:2px;
+  }
+  @keyframes insertCard{
+    0%,100%{ transform:translateY(0); opacity:1;}
+    50%{ transform:translateY(-50px); opacity:0.3;}
+  }
+  .insert-msg{
+    font-size:13px;
+    color:#5fae84;
+    letter-spacing:2px;
+    text-align:center;
+  }
+
+  .hidden{ display:none !important; }
+
+  footer.note{
+    text-align:center;
+    font-size:11px;
+    color:#41524a;
+    margin-top:14px;
+    letter-spacing:1px;
+  }
+</style>
+</head>
+<body>
+
+<div class="atm-shell">
+  <div class="brand">
+    <span><span class="dot"></span>VIRTUAL BANK</span>
+    <span class="logo">V-ATM</span>
+  </div>
+
+  <div class="screen">
+    <div class="screen-header">
+      <span id="screenTime">SESSION READY</span>
+      <span id="screenStatus">CARD: 없음</span>
+    </div>
+
+    <div class="screen-body" id="screenBody">
+      <!-- 화면 1: 카드 삽입 -->
+      <div id="view-insert" class="card-slot-anim">
+        <div class="card-icon"></div>
+        <div class="insert-msg">카드를 삽입해 주세요</div>
+        <div class="error-msg" id="insertError"></div>
+      </div>
+
+      <!-- 화면 2: 사용자 선택 -->
+      <div id="view-select" class="hidden">
+        <div class="title">카드 소유자 선택</div>
+        <div class="subtitle">사용할 카드를 선택해 주세요</div>
+        <div class="menu-list" id="userSelectList"></div>
+      </div>
+
+      <!-- 화면 3: 비밀번호 입력 -->
+      <div id="view-pin" class="hidden">
+        <div class="title">비밀번호 입력</div>
+        <div class="subtitle">키패드로 4자리 비밀번호를 입력하세요</div>
+        <div class="field">
+          <label>PIN CODE</label>
+          <div class="pin-display empty" id="pinDisplay">— — — —</div>
+        </div>
+        <div class="error-msg" id="pinError"></div>
+      </div>
+
+      <!-- 화면 3: 메인 메뉴 -->
+      <div id="view-menu" class="hidden">
+        <div class="title">메뉴를 선택하세요</div>
+        <div class="subtitle" id="menuGreeting">계좌 인증이 완료되었습니다</div>
+        <div class="menu-list">
+          <button data-action="balance">잔액 조회 <span class="arrow">→</span></button>
+          <button data-action="withdraw">출금 <span class="arrow">→</span></button>
+          <button data-action="deposit">입금 <span class="arrow">→</span></button>
+          <button data-action="logout">카드 반환 / 종료 <span class="arrow">→</span></button>
+        </div>
+      </div>
+
+      <!-- 화면 4: 잔액 조회 -->
+      <div id="view-balance" class="hidden">
+        <div class="title">잔액 조회</div>
+        <div class="subtitle">현재 계좌 잔액입니다</div>
+        <div class="field">
+          <div class="balance-label">AVAILABLE BALANCE (KRW)</div>
+          <div class="balance-amount" id="balanceAmount">0</div>
+        </div>
+      </div>
+
+      <!-- 화면 5: 출금 -->
+      <div id="view-withdraw" class="hidden">
+        <div class="title">출금</div>
+        <div class="subtitle">출금할 금액을 입력하세요 (1,000원 단위)</div>
+        <div class="field">
+          <label>AMOUNT (KRW)</label>
+          <input type="number" id="withdrawInput" class="amount-input" placeholder="0" step="1000" min="0">
+        </div>
+        <div class="quick-amounts">
+          <button data-amt="10000">10,000</button>
+          <button data-amt="50000">50,000</button>
+          <button data-amt="100000">100,000</button>
+        </div>
+        <div class="error-msg" id="withdrawError"></div>
+      </div>
+
+      <!-- 화면 6: 입금 -->
+      <div id="view-deposit" class="hidden">
+        <div class="title">입금</div>
+        <div class="subtitle">입금할 금액을 입력하세요</div>
+        <div class="field">
+          <label>AMOUNT (KRW)</label>
+          <input type="number" id="depositInput" class="amount-input" placeholder="0" step="1000" min="0">
+        </div>
+        <div class="quick-amounts">
+          <button data-amt="10000">10,000</button>
+          <button data-amt="50000">50,000</button>
+          <button data-amt="100000">100,000</button>
+        </div>
+        <div class="error-msg" id="depositError"></div>
+      </div>
+
+      <!-- 화면 7: 완료 영수증 -->
+      <div id="view-receipt" class="hidden">
+        <div class="title" id="receiptTitle">거래 완료</div>
+        <div class="receipt">
+          <div class="line"><span>거래 종류</span><span id="rType">-</span></div>
+          <div class="line"><span>거래 금액</span><span id="rAmount">-</span></div>
+          <hr>
+          <div class="line"><span>거래 후 잔액</span><span id="rBalance">-</span></div>
+          <div class="line"><span>시각</span><span id="rTime">-</span></div>
+        </div>
+      </div>
+
+      <!-- 화면 8: 종료 -->
+      <div id="view-end" class="hidden">
+        <div class="title">카드를 가져가세요</div>
+        <div class="subtitle">이용해 주셔서 감사합니다.<br>화면을 누르면 처음으로 돌아갑니다.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <!-- 카드 삽입 버튼 -->
+    <div id="ctrl-insert">
+      <div class="action-row">
+        <button class="btn btn-primary" id="btnInsertCard">카드 삽입</button>
+      </div>
+    </div>
+
+    <!-- 사용자 선택: 별도 컨트롤 없음 -->
+    <div id="ctrl-select" class="hidden"></div>
+
+    <!-- PIN 키패드 -->
+    <div id="ctrl-pin" class="hidden">
+      <div class="keypad">
+        <button data-key="1">1</button>
+        <button data-key="2">2</button>
+        <button data-key="3">3</button>
+        <button data-key="4">4</button>
+        <button data-key="5">5</button>
+        <button data-key="6">6</button>
+        <button data-key="7">7</button>
+        <button data-key="8">8</button>
+        <button data-key="9">9</button>
+        <button class="wide-icon" data-key="clear">지움</button>
+        <button data-key="0">0</button>
+        <button class="wide-icon" data-key="enter">확인</button>
+      </div>
+    </div>
+
+    <!-- 메뉴: 별도 컨트롤 없음(화면 내 버튼 사용) -->
+
+    <!-- 잔액 조회 컨트롤 -->
+    <div id="ctrl-balance" class="hidden">
+      <div class="action-row">
+        <button class="btn btn-secondary" data-back="menu">메뉴로</button>
+      </div>
+    </div>
+
+    <!-- 출금 컨트롤 -->
+    <div id="ctrl-withdraw" class="hidden">
+      <div class="action-row">
+        <button class="btn btn-secondary" data-back="menu">취소</button>
+        <button class="btn btn-primary" id="btnWithdrawConfirm">출금하기</button>
+      </div>
+    </div>
+
+    <!-- 입금 컨트롤 -->
+    <div id="ctrl-deposit" class="hidden">
+      <div class="action-row">
+        <button class="btn btn-secondary" data-back="menu">취소</button>
+        <button class="btn btn-primary" id="btnDepositConfirm">입금하기</button>
+      </div>
+    </div>
+
+    <!-- 영수증 컨트롤 -->
+    <div id="ctrl-receipt" class="hidden">
+      <div class="action-row">
+        <button class="btn btn-primary" data-back="menu">메뉴로 돌아가기</button>
+      </div>
+    </div>
+
+    <!-- 종료 컨트롤 -->
+    <div id="ctrl-end" class="hidden">
+      <div class="action-row">
+        <button class="btn btn-primary" id="btnRestart">처음으로</button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="note">DEMO ONLY · 실제 은행 거래가 아닙니다</footer>
+</div>
+
+<script>
+  // ---- 가상 계좌 데이터 (초기값) ----
+  const DEFAULT_ACCOUNTS = [
+    { id: "hagalmam", cardId: "1230-0000-0000-0001", pin: "1230", balance: 1002000, name: "하갈맘" },
+    { id: "hari",     cardId: "9966-0000-0000-0002", pin: "9966", balance: 882000,  name: "하리" }
+  ];
+
+  const STORAGE_KEY = "vatm_balances";
+
+  // localStorage에 저장된 잔액이 있으면 그 값으로 덮어쓰기
+  function loadAccounts() {
+    const accounts = DEFAULT_ACCOUNTS.map(a => ({ ...a }));
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+      accounts.forEach(acc => {
+        if (typeof saved[acc.id] === "number") {
+          acc.balance = saved[acc.id];
+        }
+      });
+    } catch (e) {
+      // 저장된 값이 없거나 손상된 경우 기본값 사용
+    }
+    return accounts;
+  }
+
+  // 현재 모든 계좌의 잔액을 localStorage에 저장
+  function saveAccounts() {
+    const data = {};
+    ACCOUNTS.forEach(acc => { data[acc.id] = acc.balance; });
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      // 저장 실패 시 무시 (예: 프라이빗 모드)
+    }
+  }
+
+  const ACCOUNTS = loadAccounts();
+
+  let selectedAccount = null;
+  let enteredPin = "";
+  let currentBalance = 0;
+
+  // ---- 화면 / 컨트롤 전환 ----
+  const views = {};
+  const controls = {};
+  document.querySelectorAll('#screenBody > div').forEach(el => views[el.id] = el);
+  document.querySelectorAll('.controls > div').forEach(el => controls[el.id] = el);
+
+  function showView(viewId, ctrlId) {
+    Object.values(views).forEach(v => v.classList.add('hidden'));
+    Object.values(controls).forEach(c => c.classList.add('hidden'));
+    views[viewId].classList.remove('hidden');
+    controls[ctrlId].classList.remove('hidden');
+  }
+
+  function setStatus(text) {
+    document.getElementById('screenStatus').textContent = text;
+  }
+
+  function formatKRW(num) {
+    return num.toLocaleString('ko-KR') + " 원";
+  }
+
+  function nowString() {
+    const d = new Date();
+    return d.getFullYear() + "." + String(d.getMonth()+1).padStart(2,'0') + "." +
+           String(d.getDate()).padStart(2,'0') + " " +
+           String(d.getHours()).padStart(2,'0') + ":" +
+           String(d.getMinutes()).padStart(2,'0');
+  }
+
+  // ---- 1. 카드 삽입 ----
+  document.getElementById('btnInsertCard').addEventListener('click', () => {
+    setStatus("CARD: 인식됨 (소유자 선택 필요)");
+    buildUserSelectList();
+    showView('view-select', 'ctrl-select');
+  });
+
+  // ---- 1.5 사용자 선택 ----
+  function buildUserSelectList() {
+    const list = document.getElementById('userSelectList');
+    list.innerHTML = "";
+    ACCOUNTS.forEach(acc => {
+      const btn = document.createElement('button');
+      btn.innerHTML = acc.name + " 님의 카드 <span class='arrow'>→</span>";
+      btn.addEventListener('click', () => {
+        selectedAccount = acc;
+        setStatus("CARD: " + acc.name + " (" + acc.cardId.slice(-4) + ")");
+        enteredPin = "";
+        updatePinDisplay();
+        document.getElementById('pinError').textContent = "";
+        showView('view-pin', 'ctrl-pin');
+      });
+      list.appendChild(btn);
+    });
+  }
+
+  // ---- 2. PIN 입력 ----
+  function updatePinDisplay() {
+    const display = document.getElementById('pinDisplay');
+    if (enteredPin.length === 0) {
+      display.textContent = "— — — —";
+      display.classList.add('empty');
+    } else {
+      display.textContent = "● ".repeat(enteredPin.length).trim();
+      display.classList.remove('empty');
+    }
+  }
+
+  document.querySelectorAll('#ctrl-pin .keypad button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const key = btn.dataset.key;
+      const errorEl = document.getElementById('pinError');
+
+      if (key === 'clear') {
+        enteredPin = "";
+        errorEl.textContent = "";
+      } else if (key === 'enter') {
+        if (enteredPin.length !== 4) {
+          errorEl.textContent = "4자리 비밀번호를 입력해 주세요.";
+          return;
+        }
+        if (enteredPin === selectedAccount.pin) {
+          errorEl.textContent = "";
+          currentBalance = selectedAccount.balance;
+          document.getElementById('menuGreeting').textContent =
+            selectedAccount.name + "님, 계좌 인증이 완료되었습니다.";
+          showView('view-menu', 'ctrl-balance'); // 메뉴엔 화면 내 버튼만 사용, 컨트롤 영역 비움
+          controls['ctrl-balance'].classList.add('hidden'); // 메뉴 화면에선 하단 컨트롤 숨김
+        } else {
+          errorEl.textContent = "비밀번호가 일치하지 않습니다. 다시 입력해 주세요.";
+          enteredPin = "";
+        }
+      } else {
+        if (enteredPin.length < 4) {
+          enteredPin += key;
+          errorEl.textContent = "";
+        }
+        if (enteredPin.length === 4) {
+          // 자동 확인은 하지 않고 '확인' 버튼 대기
+        }
+      }
+      updatePinDisplay();
+    });
+  });
+
+  // ---- 3. 메뉴 선택 ----
+  document.querySelectorAll('#view-menu .menu-list button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const action = btn.dataset.action;
+      if (action === 'balance') {
+        document.getElementById('balanceAmount').textContent =
+          currentBalance.toLocaleString('ko-KR');
+        showView('view-balance', 'ctrl-balance');
+      } else if (action === 'withdraw') {
+        document.getElementById('withdrawInput').value = "";
+        document.getElementById('withdrawError').textContent = "";
+        showView('view-withdraw', 'ctrl-withdraw');
+      } else if (action === 'deposit') {
+        document.getElementById('depositInput').value = "";
+        document.getElementById('depositError').textContent = "";
+        showView('view-deposit', 'ctrl-deposit');
+      } else if (action === 'logout') {
+        if (selectedAccount) {
+          selectedAccount.balance = currentBalance;
+          saveAccounts();
+        }
+        setStatus("CARD: 없음");
+        showView('view-end', 'ctrl-end');
+      }
+    });
+  });
+
+  // ---- 메뉴로 돌아가기 (공통) ----
+  document.querySelectorAll('[data-back="menu"]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('menuGreeting').textContent =
+        selectedAccount.name + "님, 계좌 인증이 완료되었습니다.";
+      showView('view-menu', 'ctrl-balance');
+      controls['ctrl-balance'].classList.add('hidden');
+    });
+  });
+
+  // ---- 빠른 금액 버튼 ----
+  document.querySelectorAll('#view-withdraw .quick-amounts button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('withdrawInput').value = btn.dataset.amt;
+    });
+  });
+  document.querySelectorAll('#view-deposit .quick-amounts button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.getElementById('depositInput').value = btn.dataset.amt;
+    });
+  });
+
+  // ---- 4. 출금 처리 ----
+  document.getElementById('btnWithdrawConfirm').addEventListener('click', () => {
+    const input = document.getElementById('withdrawInput');
+    const errorEl = document.getElementById('withdrawError');
+    const amount = Number(input.value);
+
+    if (!amount || amount <= 0) {
+      errorEl.textContent = "올바른 금액을 입력해 주세요.";
+      return;
+    }
+    if (amount % 1000 !== 0) {
+      errorEl.textContent = "1,000원 단위로 입력해 주세요.";
+      return;
+    }
+    if (amount > currentBalance) {
+      errorEl.textContent = "잔액이 부족합니다.";
+      return;
+    }
+
+    currentBalance -= amount;
+    selectedAccount.balance = currentBalance;
+    saveAccounts();
+    errorEl.textContent = "";
+    showReceipt("출금", amount);
+  });
+
+  // ---- 5. 입금 처리 ----
+  document.getElementById('btnDepositConfirm').addEventListener('click', () => {
+    const input = document.getElementById('depositInput');
+    const errorEl = document.getElementById('depositError');
+    const amount = Number(input.value);
+
+    if (!amount || amount <= 0) {
+      errorEl.textContent = "올바른 금액을 입력해 주세요.";
+      return;
+    }
+    if (amount % 1000 !== 0) {
+      errorEl.textContent = "1,000원 단위로 입력해 주세요.";
+      return;
+    }
+
+    currentBalance += amount;
+    selectedAccount.balance = currentBalance;
+    saveAccounts();
+    errorEl.textContent = "";
+    showReceipt("입금", amount);
+  });
+
+  // ---- 6. 영수증 표시 ----
+  function showReceipt(type, amount) {
+    document.getElementById('receiptTitle').textContent = type + " 완료";
+    document.getElementById('rType').textContent = type;
+    document.getElementById('rAmount').textContent = formatKRW(amount);
+    document.getElementById('rBalance').textContent = formatKRW(currentBalance);
+    document.getElementById('rTime').textContent = nowString();
+    showView('view-receipt', 'ctrl-receipt');
+  }
+
+  // ---- 7. 처음으로 ----
+  document.getElementById('btnRestart').addEventListener('click', () => {
+    if (selectedAccount) {
+      selectedAccount.balance = currentBalance; // 세션 종료 시 잔액 저장
+      saveAccounts();
+    }
+    selectedAccount = null;
+    enteredPin = "";
+    currentBalance = 0;
+    setStatus("CARD: 없음");
+    showView('view-insert', 'ctrl-insert');
+  });
+
+  // 초기화
+  showView('view-insert', 'ctrl-insert');
+</script>
+
+</body>
+</html>
